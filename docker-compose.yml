@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: faq
+      POSTGRES_PASSWORD: faqpass
+      POSTGRES_DB: faqdb
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U faq -d faqdb"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://faq:faqpass@db:5432/faqdb
+      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-long-random-string-32-chars}
+      CORS_ORIGINS: http://localhost:3000
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.30}
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: [appdata:/app/data]
+    ports: ["8000:8000"]
+
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["3000:80"]
+
+volumes:
+  pgdata:
+  appdata:

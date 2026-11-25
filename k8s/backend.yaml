@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: faq-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: postgresql+psycopg2://faq:faqpass@postgres:5432/faqdb
+  JWT_SECRET: change-this-to-a-long-random-string-32-chars
+  LLM_API_KEY: ""
+  CORS_ORIGINS: "*"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: college-faq-backend
+spec:
+  replicas: 1   # the FAISS index lives on the pod volume; scale after moving it to shared storage
+  selector:
+    matchLabels: { app: college-faq-backend }
+  template:
+    metadata:
+      labels: { app: college-faq-backend }
+    spec:
+      containers:
+        - name: college-faq-backend
+          image: college-faq-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 8000 }]
+          envFrom: [{ secretRef: { name: faq-secrets } }]
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts: [{ name: data, mountPath: /app/data }]
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector: { app: college-faq-backend }
+  ports: [{ port: 8000, targetPort: 8000 }]
