@@ -128,19 +128,43 @@ def delete_document(doc_id: int, user: User = Depends(role_required("admin")), d
     db.commit()
 
 
+
 def reindex(db: Session) -> dict:
-    docs = [Document(page_content=f"Q: {f.question}\nA: {f.answer}",
-                     metadata={"source": f.source_doc or f"FAQ: {f.category}"})
-            for f in db.query(FAQEntry).filter(FAQEntry.is_active.is_(True), FAQEntry.status == "approved")]
+    docs = [
+        Document(
+            page_content=f"Q: {f.question}\nA: {f.answer}",
+            metadata={"source": f.source_doc or f"FAQ: {f.category}"}
+        )
+        for f in db.query(FAQEntry).filter(
+            FAQEntry.is_active.is_(True),
+            FAQEntry.status == "approved"
+        )
+    ]
+
     n_faq = len(docs)
-        for d in db.query(KBDocument).filter(KBDocument.is_active.is_(True)):
-            path = settings.DOC_DIR / d.path
-            if not path.exists():
+
+    for d in db.query(KBDocument).filter(KBDocument.is_active.is_(True)):
+        path = settings.DOC_DIR / d.path
+
+        if not path.exists():
             continue
-    text = _read_document(path)
+
+        text = _read_document(path)
+
         if text.strip():
-            docs.append(Document(page_content=text, metadata={"source": d.filename}))
-    return {"faq_entries": n_faq, "documents": len(docs) - n_faq, "chunks": rag.build_index(docs)}
+            docs.append(
+                Document(
+                    page_content=text,
+                    metadata={"source": d.filename}
+                )
+            )
+
+    return {
+        "faq_entries": n_faq,
+        "documents": len(docs) - n_faq,
+        "chunks": rag.build_index(docs)
+    }
+
 
 
 @router.post("/kb/reindex")
